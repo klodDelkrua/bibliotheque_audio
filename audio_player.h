@@ -8,6 +8,7 @@
 #include <vector>
 #include <pqxx/pqxx>
 #include <iostream>
+#include "user_account.h"
 
 class Song {
 private:
@@ -111,6 +112,7 @@ class AudioPlayer {
     std::vector<Playlist> get_all_playlists();
     std::vector<Artist> get_all_artists();
     std::vector<Album> get_all_albums();
-
+    int add_user(const std::string& username,const std::string& hash,const std::string& email);
+    std::unique_ptr<UserAccount> get_user_by_username(const std::string& username);
 };
 #endif //BIBLIOTHEQUE_AUDIO_AUDIO_PLAYER_H

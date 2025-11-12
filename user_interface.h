@@ -9,15 +9,11 @@
 #include <vector>
 #include "audio_player.h"
 
-class User_Interface {
+class UserInterface {
 private :
-    AudioPlayer& audioPlay;
-    explicit User_Interface(AudioPlayer& audioPlay) : audioPlay(audioPlay) {}
-    int menu();
-    int song_menu();
-    void song_operation(AudioPlayer& player,int choice);
-    void add_song_to_database();
+    AudioPlayer& player;
+
 public:
-    void run_application();
+    static int menu_1();
 };
 #endif //BIBLIOTHEQUE_AUDIO_USER_INTERFACE_H
