@@ -8,12 +8,19 @@
 #include <string>
 #include <vector>
 #include "audio_player.h"
+#include "authManager.h"
 
 class UserInterface {
 private :
     AudioPlayer& player;
+    AuthManager auth_manager;
 
+    int menu_1();
+    void handle_login();
+    void handle_register();
+    int menu_2() const;
 public:
-    static int menu_1();
+    explicit UserInterface(AudioPlayer& p) : player(p), auth_manager(p) {};
+    void run();
 };
 #endif //BIBLIOTHEQUE_AUDIO_USER_INTERFACE_H

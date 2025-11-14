@@ -4,6 +4,7 @@
 
 #include "audio_player.h"
 #include <pqxx/pqxx>
+#include <memory>
 //#include <pqxx/params>
 
 //Methode de la class Song
@@ -17,10 +18,6 @@ void Song::set_title(const std::string &title_) {
 
 void Song::set_artist_id(const int artist_id_) {
     artist_id = artist_id_;
-}
-
-void Song::set_is_liked(const bool is_liked_) {
-    is_liked = is_liked_;
 }
 
 void Song::set_duration(const int duration_) {
@@ -41,10 +38,6 @@ int Song::get_artist_id() const {
 
 int Song::get_duration() const {
     return duration;
-}
-
-bool Song::is_like() const {
-    return is_liked;
 }
 
 void Artist::set_id(const int id_) {
@@ -112,12 +105,11 @@ std::vector<Song> AudioPlayer::get_all_songs() {
     try {
         pqxx::read_transaction R(*db_connection);
 
-        for (auto row : R.exec("SELECT id,name, artist_id, is_liked, duration FROM song")) {
+        for (auto row : R.exec("SELECT id,name, artist_id, duration FROM song")) {
             Song s;
             s.set_id(row["id"].as<int>());
             s.set_title(row["name"].as<std::string>());
             s.set_artist_id(row["artist_id"].as<int>());
-            s.set_is_liked(row["is_liked"].as<bool>());
             s.set_duration(row["duration"].as<int>());
             results.push_back(s);
         }
@@ -142,17 +134,16 @@ void AudioPlayer::add_artist(const std::string &name) {
     }
 }
 
-void AudioPlayer::add_song(const std::string &title,const int duration,const int artist_id,const bool is_liked) {
+void AudioPlayer::add_song(const std::string &title,const int duration,const int artist_id) {
     try {
         pqxx::work txn(*db_connection);
         pqxx::params p;
         p.append(title);
         p.append(duration);
-        p.append(is_liked);
         p.append(artist_id);
 
-        txn.exec("INSERT INTO SONG (name,duration, is_liked, artist_id)"
-                "VALUES ($1, $2, $3, $4)",
+        txn.exec("INSERT INTO SONG (name,duration, artist_id)"
+                "VALUES ($1, $2, $3)",
                 p);
         txn.commit();
         std::cout<<"Song : " <<title<<" added"<<std::endl;
@@ -164,7 +155,7 @@ void AudioPlayer::add_song(const std::string &title,const int duration,const int
     }
 }
 
-void AudioPlayer::add_playlist(const std::string &name, const std::vector<int> &song_ids) {
+void AudioPlayer::add_playlist(const std::string &name, const std::vector<int> &song_ids,int user_id) {
     if (name.empty() || song_ids.empty()) {
         std::cerr<<"Erreur : Une playlist doit avoir un nom et au moins une chanson\n";
         return;
@@ -173,9 +164,10 @@ void AudioPlayer::add_playlist(const std::string &name, const std::vector<int> &
         pqxx::work W(*db_connection);
         pqxx::params p_name;
         p_name.append(name);
+        p_name.append(user_id);
         //on ajoute "RETURNING id" a la requete.
         //on utilise exec1() qui signifie "execute et attend UNE ligne en retour"
-        const pqxx::result res = W.exec("INSERT INTO playlist (name) VALUES ($1) RETURNING id",p_name);
+        const pqxx::result res = W.exec("INSERT INTO playlist (name,user_id) VALUES ($1,$2) RETURNING id",p_name);
 
         if (res.size() != 1) {
             throw std::logic_error("L'insertion de la playlist n'a pas retourne d'ID\n");
@@ -320,12 +312,13 @@ void AudioPlayer::delete_album(const std::string &name, int album_id) {
     }
 }
 
-std::vector<Playlist> AudioPlayer::get_all_playlists() {
+std::vector<Playlist> AudioPlayer::get_playlist_by_user(const int user_id){
     std::vector<Playlist> playlist;
     try {
         pqxx::read_transaction W(*db_connection);
-
-        for (auto row : W.exec("SELECT id,name FROM playlist")) {
+        pqxx::params p_link;
+        p_link.append(user_id);
+        for (auto row : W.exec("SELECT id,name FROM playlist WHERE user_id = $1",p_link)) {
             Playlist s;
             s.set_id(row["id"].as<int>());
             s.set_name(row["name"].as<std::string>());
@@ -380,6 +373,61 @@ std::vector<Album> AudioPlayer::get_all_albums() {
         std::cerr<<"Erreur : "<<e.what()<<std::endl;
     }
     return albums;
+}
+
+int AudioPlayer::add_user(const std::string &username, const std::string &hash, const std::string &email) {
+    if (username.empty() || hash.empty() || email.empty()) {
+        std::cerr<<"Erreur aucune information ne doit etre vide\n";
+        return -1;
+    }
+    int new_id = -1;
+    try {
+        pqxx::work W(*db_connection);
+    pqxx::params p;
+        p.append(username);
+        p.append(hash);
+        p.append(email);
+
+        const pqxx::result res = W.exec("INSERT INTO user_account (username,password_hash,email) VALUES ($1) RETURNING id",p );
+        new_id = res[0]["id"].as<int>();
+        W.commit();
+        std::cout<<" Ajout de l'utilisateur << '"<<username<<"' cree avec l'ID : "<<new_id<<std::endl;
+
+    }catch (const pqxx::sql_error& e) {
+        std::cerr<<"Erreur SQL : "<<e.what()<<std::endl;
+        std::cerr <<"Requete : "<<e.query()<<std::endl;
+    }catch (const std::exception& e) {
+        std::cerr<<"Erreur : "<<e.what()<<std::endl;
+    }
+    return new_id;
+}
+
+std::unique_ptr<UserAccount> AudioPlayer::get_user_by_username(const std::string &username) {
+    try {
+        pqxx::read_transaction R(*db_connection);
+        pqxx::params p;
+        p.append(username);
+
+        const pqxx::result res = R.exec("SELECT id, username, password_hash, email "
+            "FROM user_account WHERE username = $1",p);
+
+        if (res.empty()) {
+            std::cout<<"Utilisateur non trouve \n";
+            return nullptr;
+        }
+        const pqxx::row row = res[0];
+
+        return std::make_unique<UserAccount>(
+            row["id"].as<int>(),
+            row["username"].as<std::string>(),
+            row["password_hash"].as<std::string>(),
+            row["email"].as<std::string>());
+    }catch (const std::exception& e) {
+        // En cas d'erreur BDD (connexion perdue, etc.), on signale l'échec
+        // en retournant aussi un pointeur nul.
+        std::cerr << "Erreur BDD [get_user_by_username]: " << e.what() << std::endl;
+        return nullptr;
+    }
 }
 
 
