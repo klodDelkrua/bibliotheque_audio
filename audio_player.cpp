@@ -5,6 +5,7 @@
 #include "audio_player.h"
 #include <pqxx/pqxx>
 #include <memory>
+#include <chrono> // Pour le chronomètre
 //#include <pqxx/params>
 
 //Methode de la class Song
@@ -122,15 +123,51 @@ std::vector<Song> AudioPlayer::get_all_songs() {
     return results;
 }
 
-void AudioPlayer::add_artist(const std::string &name) {
+int AudioPlayer::add_artist(const std::string &name) {
     try {
         pqxx::work txn(*db_connection);
-        pqxx::params p; //p for parametre
+        pqxx::params p;
         p.append(name);
-        txn.exec("INSERT INTO artist (name) VALUES ($1)",p);
+
+        // 1. Exécuter la requête avec RETURNING id
+        // Note: Utilisation de exec_params est généralement plus sûr que exec simple
+        pqxx::result res = txn.exec(
+            "INSERT INTO artist (name) VALUES ($1) RETURNING id",
+            p
+        );
+
+        // 2. Vérifier si l'insertion a réussi (une ligne doit être retournée)
+        // Suppression de res.at(0).empty() qui est obsolète et redondante
+        if (res.empty()) {
+            std::cerr << "Erreur : L'insertion de l'artiste a echoue.\n";
+            return -1;
+        }
+
+        // 3. Extraire l'ID. Nous savons que res.at(0) existe.
+        // Utilisation de .at(0) ou .front() pour la première ligne, et .front() pour la première colonne.
+        // Utiliser .at(0) pour les colonnes est parfois considéré comme obsolète,
+        // mais .at(0) sur la ligne est encore souvent utilisé.
+        // Une manière plus moderne est :
+        const int new_artist_id = res[0][0].as<int>();
+
+        // (La version res.at(0).at(0).as<int>() reste fonctionnelle pour l'instant)
+
+        // 4. Valider la transaction
         txn.commit();
-    }catch (const pqxx::sql_error& e) {
-        std::cerr<<"Erreur SQl : "<<e.what()<<std::endl;
+
+        std::cout << "Artiste '" << name << "' ajoute avec succes (ID: " << new_artist_id << ").\n";
+
+        // 5. Retourner l'ID
+        return new_artist_id;
+
+    } catch (const pqxx::sql_error& e) {
+        // ... (gestion des erreurs inchangée)
+        std::cerr << "Erreur SQL lors de l'ajout d'artiste: " << e.what() << std::endl;
+        return -1;
+    } catch (const std::exception& e) {
+        // ...
+        std::cerr << "Erreur generale lors de l'ajout d'artiste: " << e.what() << std::endl;
+        return -1;
     }
 }
 
@@ -249,7 +286,7 @@ void AudioPlayer::delete_artist(const std::string& name,const int artist_id) {
     }
 }
 
-void AudioPlayer::delete_song(const std::string &title,const int song_id) {
+bool AudioPlayer::delete_song(const int song_id) {
     try {
         pqxx::work W(*db_connection);
         pqxx::params p_link;
@@ -258,9 +295,11 @@ void AudioPlayer::delete_song(const std::string &title,const int song_id) {
         const pqxx::result res = W.exec("DELETE FROM song WHERE id = ($1)",p_link);
         W.commit();
         if (res.affected_rows() > 0) {
-            std::cout <<"Le song '"<<title<<"' (ID : "<<song_id<<") a ete supprime"<<std::endl;
+            std::cout <<"Le song (ID : "<<song_id<<") a ete supprime"<<std::endl;
+            return true;
         }else {
             std::cout<<"ATTENTION : Aucun song de l'ID "<<song_id<<std::endl;
+            return false;
         }
     }catch (const pqxx::sql_error& e) {
         std::cerr<<"Erreur SQL : "<<e.what()<<std::endl;
@@ -268,6 +307,8 @@ void AudioPlayer::delete_song(const std::string &title,const int song_id) {
     }catch (const std::exception& e) {
         std::cerr<<"Erreur : "<<e.what()<<std::endl;
     }
+    std::cerr<<"comportement inattendu du programme \n";
+    return false;
 }
 
 void AudioPlayer::delete_playlist(const std::string &name,const int playlist_id) {
@@ -430,5 +471,138 @@ std::unique_ptr<UserAccount> AudioPlayer::get_user_by_username(const std::string
     }
 }
 
+// Dans AudioPlayer.cpp
 
+void AudioPlayer::like_song(const int user_id, const int song_id, const bool is_liked) {
 
+    // Le statut 'is_liked' est converti en valeur booléenne pour la BDD (true/false)
+    std::string liked_status = is_liked ? "TRUE" : "FALSE";
+
+    try {
+        pqxx::work W(*db_connection);
+
+        pqxx::params p;
+        p.append(user_id);
+        p.append(song_id);
+
+        W.exec(
+            "INSERT INTO user_song_interaction (user_id, song_id, is_liked) "
+            "VALUES ($1, $2, " + liked_status + ") " // $3 est remplacé par la chaîne "TRUE" ou "FALSE"
+            "ON CONFLICT (user_id, song_id) DO UPDATE "
+            "SET is_liked = EXCLUDED.is_liked", // EXCLUDED.is_liked est la nouvelle valeur que l'on tente d'insérer
+            p
+        );
+
+        W.commit();
+
+        std::cout << "Interaction enregistrée pour l'utilisateur ID " << user_id
+                  << " et la chanson ID " << song_id
+                  << " (Liked: " << (is_liked ? "Oui" : "Non") << ").\n";
+
+    } catch (const pqxx::sql_error& e) {
+        std::cerr << "Erreur SQL lors de l'enregistrement de l'interaction : " << e.what() << std::endl;
+        std::cerr << "Requete : " << e.query() << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Erreur non-SQL lors de l'enregistrement de l'interaction : " << e.what() << std::endl;
+    }
+}
+
+std::vector<Song> AudioPlayer::get_liked_songs(const int user_id) {
+    std::vector<Song> liked_songs;
+
+    try {
+        // Lecture seule
+        pqxx::read_transaction R(*db_connection);
+
+        pqxx::params p;
+        p.append(user_id);
+
+        // Requête SELECT avec jointure et filtre
+        // ------------------------------------
+        // Nous joignons 'song' et 'user_song_interaction' sur le champ song_id.
+        // Nous filtrons pour l'utilisateur ($1) et uniquement les chansons aimées (is_liked = TRUE).
+        // Nous sélectionnons les champs de la table 'song' pour construire nos objets Song.
+        // ------------------------------------
+        pqxx::result res = R.exec(
+            "SELECT "
+                "s.id, s.name, s.duration, s.artist_id "
+            "FROM "
+                "song s "
+            "JOIN "
+                "user_song_interaction usi ON s.id = usi.song_id "
+            "WHERE "
+                "usi.user_id = $1 AND usi.is_liked = TRUE",
+            p
+        );
+
+        for (const auto& row : res) {
+            Song s;
+            s.set_id(row["id"].as<int>());
+            s.set_title(row["name"].as<std::string>());
+            s.set_duration(row["duration"].as<int>());
+            s.set_artist_id(row["artist_id"].as<int>());
+
+            liked_songs.push_back(s);
+        }
+
+        R.commit();
+
+        std::cout << "Récupération réussie de " << liked_songs.size()
+                  << " chansons aimées pour l'utilisateur ID " << user_id << ".\n";
+
+    } catch (const std::exception& e) {
+        std::cerr << "Erreur lors de la récupération des chansons aimées : " << e.what() << std::endl;
+        // Retourne un vecteur vide en cas d'erreur.
+    }
+
+    return liked_songs;
+}
+
+std::vector<Song> AudioPlayer::search_song_by_title(const std::string& query) {
+    std::vector<Song> results;
+
+    // Début du chronomètre
+    auto start = std::chrono::high_resolution_clock::now();
+
+    try {
+        pqxx::read_transaction R(*db_connection);
+        pqxx::params p;
+        // On ajoute % autour du terme pour chercher "contient ce mot"
+        // Note pour le prof : Pour utiliser pleinement l'index standard B-Tree,
+        // une recherche par préfixe (ex: "Mot%") est idéale.
+        // Ici on fait une recherche flexible.
+        std::string search_term = "%" + query + "%";
+        p.append(search_term);
+
+        // ILIKE est insensible à la casse (Majuscule/minuscule)
+        pqxx::result res = R.exec(
+            "SELECT id, name, duration, artist_id FROM song WHERE name ILIKE $1",
+            p
+        );
+
+        for (const auto& row : res) {
+            Song s;
+            s.set_id(row["id"].as<int>());
+            s.set_title(row["name"].as<std::string>());
+            s.set_duration(row["duration"].as<int>());
+            s.set_artist_id(row["artist_id"].as<int>());
+            results.push_back(s);
+        }
+
+        // Fin du chronomètre (après récupération des données)
+        auto end = std::chrono::high_resolution_clock::now();
+
+        // Calcul de la durée en millisecondes
+        std::chrono::duration<double, std::milli> elapsed = end - start;
+
+        std::cout << "\n--- STATISTIQUES DE PERFORMANCE ---\n";
+        std::cout << "Recherche terminee en : " << elapsed.count() << " ms\n";
+        std::cout << "Nombre de resultats trouves : " << results.size() << "\n";
+        std::cout << "-----------------------------------\n";
+
+    } catch (const std::exception& e) {
+        std::cerr << "Erreur recherche: " << e.what() << std::endl;
+    }
+
+    return results;
+}

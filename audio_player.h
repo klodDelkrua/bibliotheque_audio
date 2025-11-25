@@ -97,13 +97,21 @@ class AudioPlayer {
         }
     }
 
+    explicit AudioPlayer(std::unique_ptr<pqxx::connection> conn)
+    : db_connection(std::move(conn)) // Utilisation de la liste d'initialisation pour le déplacement
+{
+        // Pas besoin de try/catch ici, la connexion est supposée établie.
+        std::cout << "Connexion BDD transferee avec succes." << std::endl;
+}
+
     std::vector<Song> get_all_songs() ;
-    void add_artist(const std::string& name) ;
+
+    int add_artist(const std::string &name) ;
     void add_song(const std::string& title,int duration,int artist_id) ;
     void add_playlist(const std::string& name,const std::vector<int>& song_ids,int user_id) ;
     void add_album(const std::string &name,int artist_id,const std::vector<int>& songs_id) ;
     void delete_artist(const std::string& name,int artist_id) ;
-    void delete_song(const std::string& title,int song_id);
+    bool delete_song(int song_id);
     void delete_playlist(const std::string& name,int playlist_id);
     void delete_album(const std::string& name,int album_id);
     std::vector<Playlist> get_playlist_by_user(int user_id);
@@ -111,5 +119,8 @@ class AudioPlayer {
     std::vector<Album> get_all_albums();
     int add_user(const std::string& username,const std::string& hash,const std::string& email);
     std::unique_ptr<UserAccount> get_user_by_username(const std::string& username);
+    void like_song(int user_id, int song_id, bool is_liked);
+    std::vector<Song> get_liked_songs(int user_id);
+    std::vector<Song> search_song_by_title(const std::string& query);
 };
 #endif //BIBLIOTHEQUE_AUDIO_AUDIO_PLAYER_H

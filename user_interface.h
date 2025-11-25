@@ -13,14 +13,15 @@
 class UserInterface {
 private :
     AudioPlayer& player;
-    AuthManager auth_manager;
+    AuthManager& auth_manager;
 
     int menu_1();
     void handle_login();
     void handle_register();
+    void display_artist() const;
     int menu_2() const;
 public:
-    explicit UserInterface(AudioPlayer& p) : player(p), auth_manager(p) {};
+    explicit UserInterface(AudioPlayer& p, AuthManager& m) : player(p), auth_manager(m) {};
     void run();
 };
 #endif //BIBLIOTHEQUE_AUDIO_USER_INTERFACE_H

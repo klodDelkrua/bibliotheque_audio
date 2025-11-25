@@ -23,6 +23,6 @@ public:
     bool login(const std::string& username,const std::string& password);
     void logout();
     bool is_logged_in() const;
-    const UserAccount& get_current_user() const;
+    [[nodiscard]] const UserAccount& get_current_user() const;
 };
 #endif //BIBLIOTHEQUE_AUDIO_AUTHMANAGER_H

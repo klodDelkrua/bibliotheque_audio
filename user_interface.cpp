@@ -6,6 +6,9 @@
 #include <limits>
 #include <iostream>
 #include <string>
+#include "song.h"
+#include "album.h"
+#include "playlist.h"
 
 //std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 #ifdef _WIN32
@@ -41,10 +44,9 @@ char getch_portable() {
 // ----- Fonction de saisie du mot de passe -----
 std::string passWord() {
     std::string password;
-    char ch;
 
     while (true) {
-        ch = getch_portable();
+        const char ch = getch_portable();
 
         // 1. Gérer la fin de la saisie (Touche Entrée)
         if (ch == '\n' || ch == '\r') {
@@ -90,13 +92,12 @@ int UserInterface::menu_1() {
 }
 
 void UserInterface::handle_login() {
-    std::string username , password;
+    std::string username;
 
     std::cout<<"\n--- CONNEXION ---\n";
     std::cout<<"Nom d'utilisateur : ";
     std::getline(std::cin,username);
-    std::getline(std::cin,password);
-    password = passWord();
+    std::string password = passWord();
 
     if (auth_manager.login(username, password)) {
         const UserAccount& user = auth_manager.get_current_user();
@@ -111,7 +112,6 @@ void UserInterface::handle_register() {
     std::cout<<"\n ---CREATION D'UN COMPTE ---"<<std::endl;
 
     std::cout<<"Nom d'utilisateur : ";
-    std::getline(std::cin,username);
     std::getline(std::cin,username);
 
     std::cout<<"Email : ";
@@ -133,14 +133,40 @@ void UserInterface::handle_register() {
     }
 }
 
+void UserInterface::display_artist() const {
+    const std::vector<Artist> artists = player.get_all_artists();
+    std::cout<<"\t\t~~~La liste des artits\n";
+    int i = 1;
+    for (const auto& artist : artists) {
+        std::cout <<i<<". "<< artist.get_name() << "\n";
+        i++;
+    }
+    std::cout<< "\t\t~~~END~~~\n";
+}
+
+// void UserInterface::display_favorite() const {
+//     const int  user_id = auth_manager.get_current_user().get_id();
+//     const std::vector<Song> songs = player.get_liked_songs(user_id);
+//     if (songs.empty()) {
+//         std::cout <<"La liste des chansons preferees est vide \n";
+//         return;
+//     }
+//     int i = 1;
+//     std::cout <<"Liste des chansons preferee\n";
+//     for (auto& song : songs) {
+//         std::cout<<i<<". "<<song.get_title()<<std::endl;
+//         i++;
+//     }
+//     std::cout <<"\t\t~~~END~~~\n";
+// }
+
 int UserInterface::menu_2() const {
     std::cout<<"\n--- BIBLIOTHEQUE AUDIO ["<<auth_manager.get_current_user().get_name()<<"]---\n";
     std::cout<<"1. Gerer les Chansons" <<std::endl;
     std::cout<<"2. Gerer les Artistes" <<std::endl;
-    std::cout<<"3. Gerer les Chansons" << std::endl;
+    std::cout<<"3. Gerer les albums" << std::endl;
     std::cout<<"4. Gerer les Playlists" <<std::endl;
-    std::cout<<"5. Voir mon historique d'ecoute" <<std::endl;
-    std::cout<<"6. Se deconnecter" <<std::endl;
+    std::cout<<"5. Se deconnecter" <<std::endl;
 
     int choice ;
     std::cout<<"Votre choix : ";
@@ -177,8 +203,39 @@ void UserInterface::run() {
             }
         }
         else {
-            int app_choice  = menu_2();
+            const int app_choice  = menu_2();
 
+            // Raccourcis pour les references
+            AudioPlayer& player_ref = player;
+            const UserAccount& user_ref = auth_manager.get_current_user();
+            switch (app_choice) {
+                case 1:
+                {
+                    SongMenu song_menu(player_ref, const_cast<UserAccount&>(user_ref));
+                    song_menu.run_song();
+                }
+                    break;
+                case 2:
+                    display_artist();
+                    break;
+                case 3 :
+                {
+                    AlbumMenu album_menu(player_ref, const_cast<UserAccount&>(user_ref));
+                    album_menu.run_album_menu();
+                    break;
+                }
+                case 4: {
+                    PlaylistMenu playlist_menu(player_ref, const_cast<UserAccount&>(user_ref));
+                    playlist_menu.run_playlist_menu();
+                    break;
+                }
+                case 5:
+                    auth_manager.logout();
+                    break;
+                default:
+                    std::cout <<"Choix invalide.\n";
+                    break;
+            }
         }
     }
 }

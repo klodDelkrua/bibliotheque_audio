@@ -27,7 +27,14 @@ add_executable(bibliotheque_audio
         authManager.cpp
         authManager.h
         user_account.cpp
-        user_account.h)
+        user_account.h
+        song.cpp
+        song.h
+        album.cpp
+        album.h
+        playlist.cpp
+        playlist.h
+)
 
 # E. L'étape CRITIQUE : Dit au linker d'inclure le code de libpqxx
 target_link_libraries(bibliotheque_audio ${PQXX_LIBRARIES})
