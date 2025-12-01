@@ -15,10 +15,10 @@ int SongMenu::menu() {
                 "3. Supprimer une chanson\n"
                 "4. Liker une chanson\n"
                 "5. Voir mes chansons aimee\n"
-                "6. Rechercher une chanson"
+                "6. Rechercher une chanson\n"
                 "7. Retour aux menu principale\n";
-    while (!(std::cin >> choice) || choice < 0 || choice > 6) {
-        std::cout << "Choix invalide. Veuillez entrer un numéro entre 1 et " << 6 << " : ";
+    while (!(std::cin >> choice) || choice < 0 || choice > 7) {
+        std::cout << "Choix invalide. Veuillez entrer un numéro entre 1 et " << 7 << " : ";
 
         // Si l'entree n'etait pas un nombre :
         if (std::cin.fail()) {
@@ -217,6 +217,7 @@ void SongMenu::search_song_ui() {
     std::cout << "\n--- RECHERCHE DE CHANSON ---\n";
     std::cout << "Entrez le titre (ou une partie du titre) : ";
     std::string query;
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     std::getline(std::cin, query);
 
     // Appel à la fonction chronométrée

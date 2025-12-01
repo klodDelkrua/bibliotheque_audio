@@ -429,7 +429,7 @@ int AudioPlayer::add_user(const std::string &username, const std::string &hash, 
         p.append(hash);
         p.append(email);
 
-        const pqxx::result res = W.exec("INSERT INTO user_account (username,password_hash,email) VALUES ($1) RETURNING id",p );
+        const pqxx::result res = W.exec("INSERT INTO user_account (username,password_hash,email) VALUES ($1, $2, $3) RETURNING id",p );
         new_id = res[0]["id"].as<int>();
         W.commit();
         std::cout<<" Ajout de l'utilisateur << '"<<username<<"' cree avec l'ID : "<<new_id<<std::endl;

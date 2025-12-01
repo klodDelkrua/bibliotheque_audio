@@ -83,10 +83,17 @@ std::string passWord() {
 
 
 int UserInterface::menu_1() {
-    std::cout<<"1. Se connecter\n2. Creer un compte\n";
+    std::cout<<"1. Se connecter\n2. Creer un compte\n3. Exit\n";
+    std::cout.flush();
     std::cout<<"Choix : ";
     int choice(0);
     std::cin>>choice;
+    while (choice < 1 || choice > 3) {
+        std::cout << "Invalid choice\n";
+        std::cout << "Choice : ";
+        std::cin>>choice;
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     return choice;
 }
@@ -130,6 +137,7 @@ void UserInterface::handle_register() {
         std::cout <<"\nLe compte a ete cree avec succes. Bienvenue "<<user.get_name()<<std::endl;
     }else {
         std::cout<<"\n Echec de la creation du compte.\n";
+        std::cout.flush();
     }
 }
 
@@ -163,7 +171,7 @@ void UserInterface::display_artist() const {
 int UserInterface::menu_2() const {
     std::cout<<"\n--- BIBLIOTHEQUE AUDIO ["<<auth_manager.get_current_user().get_name()<<"]---\n";
     std::cout<<"1. Gerer les Chansons" <<std::endl;
-    std::cout<<"2. Gerer les Artistes" <<std::endl;
+    std::cout<<"2. Voir les Artistes" <<std::endl;
     std::cout<<"3. Gerer les albums" << std::endl;
     std::cout<<"4. Gerer les Playlists" <<std::endl;
     std::cout<<"5. Se deconnecter" <<std::endl;
