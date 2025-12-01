@@ -4,37 +4,38 @@ project(bibliotheque_audio)
 set(CMAKE_CXX_STANDARD 23)
 
 # ==========================================================
-# 1. TROUVER ET LIER LIBPQXX
+# 1. PARAMÈTRES ET STRUCTURE DE FICHIERS
 # ==========================================================
 
-# A. Cherche le programme 'pkg-config' (utilisé pour trouver les librairies)
+# Permet au compilateur de trouver les fichiers d'en-tête (.h) dans le dossier 'include/'
+# sans avoir à modifier les chemins d'accès dans le code C++ (ex: #include "song.h").
+include_directories(include)
+
+# Définit la liste de tous les fichiers sources (.cpp) situés dans le dossier src/.
+# Le chemin doit être mis à jour pour pointer vers les nouveaux emplacements.
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+
+# ==========================================================
+# 2. TROUVER ET LIER LIBPQXX (INCHANGÉ)
+# ==========================================================
+
+# A. Cherche le programme 'pkg-config'
 find_package(PkgConfig REQUIRED)
 
 # B. Demande à pkg-config de trouver les informations pour libpqxx
-#    (Inclut les chemins d'en-tête et les noms des librairies)
 pkg_check_modules(PQXX REQUIRED libpqxx)
 
 # C. Utilise les informations trouvées pour compiler (includes)
+# Bien que nous utilisions 'include_directories(include)' plus haut,
+# cette ligne est nécessaire pour les en-têtes de pqxx.
 include_directories(${PQXX_INCLUDE_DIRS})
 
-# D. Définit l'exécutable
-add_executable(bibliotheque_audio
-        main.cpp
-        audio_player.cpp
-        audio_player.h
-        user_interface.cpp
-        user_interface.h
-        authManager.cpp
-        authManager.h
-        user_account.cpp
-        user_account.h
-        song.cpp
-        song.h
-        album.cpp
-        album.h
-        playlist.cpp
-        playlist.h
-)
+# ==========================================================
+# 3. CRÉATION DE L'EXÉCUTABLE
+# ==========================================================
+
+# D. Définit l'exécutable en utilisant la variable ${SOURCES} qui contient tous les .cpp
+add_executable(bibliotheque_audio ${SOURCES})
 
 # E. L'étape CRITIQUE : Dit au linker d'inclure le code de libpqxx
 target_link_libraries(bibliotheque_audio ${PQXX_LIBRARIES})
