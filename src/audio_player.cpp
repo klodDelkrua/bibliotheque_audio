@@ -571,14 +571,11 @@ std::vector<Song> AudioPlayer::search_song_by_title(const std::string& query) {
         // Note pour le prof : Pour utiliser pleinement l'index standard B-Tree,
         // une recherche par préfixe (ex: "Mot%") est idéale.
         // Ici on fait une recherche flexible.
-        std::string search_term = "%" + query + "%";
+        std::string search_term = query + "%";
         p.append(search_term);
 
         // ILIKE est insensible à la casse (Majuscule/minuscule)
-        pqxx::result res = R.exec(
-            "SELECT id, name, duration, artist_id FROM song WHERE name ILIKE $1",
-            p
-        );
+        pqxx::result res = R.exec("SELECT id, name, duration, artist_id FROM song WHERE name = $1",p);
 
         for (const auto& row : res) {
             Song s;
